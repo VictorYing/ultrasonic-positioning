@@ -6,7 +6,7 @@ enum {
   TX_PIN_1 = 3,
   TX_PIN_2 = 11,
   FREQ = 25000u,  // Hz
-  DURATION = 2u,  // ms
+  DURATION = 5u,  // ms
 };
 
 void setup() {

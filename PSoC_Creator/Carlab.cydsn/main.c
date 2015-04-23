@@ -15,10 +15,22 @@
 
 // Defining constants
 #define maxTime 65535.0
+#define maxUltraTime 16777216.0
 #define LCD_NUM_COLUMNS 16
 #define pi 3.14159265359
 #define clockSpeed 50000.0
+#define ultraClockSpeed 24000000.0
 #define alpha 0.2
+#define pos1x 60.0
+#define pos1y 0.0
+#define pos1z 0.0
+#define pos2x 60.0
+#define pos2y 30.0
+#define pos2z 0.0
+#define pos3x 0.0
+#define pos3y 30.0
+#define pos3z 0.0
+#define wavespeed 1135.0
 
 static const float normSpeed = 6.0;
 
@@ -251,6 +263,51 @@ CY_ISR(interLine) {
     PWMServo_WriteCompare(newSteer);
 }
 
+CY_ISR(interPing) {
+ 
+    uint32 pTime0, pTime1, pTime2, pTime3;
+    float tau1, tau2, tau3;
+    float A2, B2, C2, D2, A3, B3, C3, D3;
+    
+    pTime0 = UltraTimer_ReadCapture();
+    pTime1 = UltraTimer_ReadCapture();
+    pTime2 = UltraTimer_ReadCapture();
+    pTime3 = UltraTimer_ReadCapture();
+    
+    UltraTimer_ReadStatusRegister();
+    
+    if (pTime1 > pTime0)
+        tau1 = (float)(maxUltraTime - pTime1 + pTime0)/ultraClockSpeed;
+    else {
+        tau1 = (float)(pTime0 - pTime1)/ultraClockSpeed;
+    }
+    
+    if (pTime2 > pTime0)
+        tau2 = (float)(maxUltraTime - pTime2 + pTime0)/ultraClockSpeed;
+    else {
+        tau2 = (float)(pTime0 - pTime2)/ultraClockSpeed;
+    }
+    
+    if (pTime3 > pTime0)
+        tau3 = (float)(maxUltraTime - pTime3 + pTime0)/ultraClockSpeed;
+    else {
+        tau3 = (float)(pTime0 - pTime3)/ultraClockSpeed;
+    }
+    
+    A2 = (2/wavespeed)*(pos2x/tau2 - pos1x/tau1);
+    A3 = (2/wavespeed)*(pos3x/tau3 - pos1x/tau1);
+    B2 = (2/wavespeed)*(pos2y/tau2 - pos1y/tau1);
+    B3 = (2/wavespeed)*(pos3y/tau3 - pos1y/tau1);
+    C2 = (2/wavespeed)*(pos2z/tau2 - pos1z/tau1);
+    C3 = (2/wavespeed)*(pos3z/tau3 - pos1z/tau1);
+    D2 = wavespeed*(tau2 - tau1) - 
+        (1/wavespeed)*((pos2x*pos2x + pos2y*pos2y + pos2z*pos2z)/tau2 
+        - (pos1x*pos1x + pos1y*pos1y + pos1z*pos1z)/tau1);
+    D3 = wavespeed*(tau3 - tau1) - 
+        (1/wavespeed)*((pos3x*pos3x + pos3y*pos3y + pos3z*pos3z)/tau3 
+        - (pos1x*pos1x + pos1y*pos1y + pos1z*pos1z)/tau1);
+}
+
 
 void main() {
 
@@ -265,6 +322,13 @@ void main() {
     line_inter_Start();
     LineCounter_Start();
     SteerTimer_Start();
+    
+    UltraTimer_Start();
+    UltraComp_Start();
+    UltraDAC_Start();
+    GlitchFilter_Start();
+    Ping_inter_Start();
+    Ping_inter_setVector(interPing);
     
     
     // Sets the vector for the HE_inter interrupt and sends an interrupt to

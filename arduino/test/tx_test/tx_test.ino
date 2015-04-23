@@ -10,6 +10,10 @@ enum {
   TX_1_PIN_2 = 3,
   TX_2_PIN_1 = 10,
   TX_2_PIN_2 = 11,
+  TX_1_PIN_1_MASK = 1u << (TX_1_PIN_1 % 8u),
+  TX_1_PIN_2_MASK = 1u << (TX_1_PIN_2 % 8u),
+  TX_2_PIN_1_MASK = 1u << (TX_2_PIN_1 % 8u),
+  TX_2_PIN_2_MASK = 1u << (TX_2_PIN_2 % 8u),
   FREQ = 25000u,  // Hz
   PERIOD = 1000000u / FREQ,  // μs
   HALF_PERIOD = PERIOD / 2u,  // μs
@@ -32,11 +36,14 @@ void loop() {
   unsigned long time = micros() - beginning;
   unsigned long next = time;
   while (time < DURATION) {
-    TX_1_PORT = TX_1_PORT & (~(1 << (TX_1_PIN_2 % 8))) | (1 << (TX_1_PIN_1 % 8));
+    // Turn off TX_1_PIN_2 and turn on TX_1_PIN_1
+    TX_1_PORT = TX_1_PORT & (~TX_1_PIN_2_MASK) | TX_1_PIN_1_MASK;
     next += HALF_PERIOD;
     while (micros() - beginning < next)
       ;
-    TX_1_PORT = TX_1_PORT & (~(1 << (TX_1_PIN_1 % 8))) | (1 << (TX_1_PIN_2 % 8));
+
+    // Turn off TX_1_PIN_1 and turn on TX_1_PIN_2
+    TX_1_PORT = TX_1_PORT & (~TX_1_PIN_1_MASK) | TX_1_PIN_2_MASK;
     next += HALF_PERIOD;
     while ((time = micros() - beginning) < next)
       ;
@@ -47,11 +54,14 @@ void loop() {
     ;
   next = time;
   while (time < SPACING + DURATION) {
-    TX_2_PORT = TX_2_PORT & (~(1 << (TX_2_PIN_2 % 8))) | (1 << (TX_2_PIN_1 % 8));
+    // Turn off TX_2_PIN_2 and turn on TX_2_PIN_1
+    TX_2_PORT = TX_2_PORT & (~TX_2_PIN_2_MASK) | TX_2_PIN_1_MASK;
     next += HALF_PERIOD;
     while (micros() - beginning < next)
       ;
-    TX_2_PORT = TX_2_PORT & (~(1 << (TX_2_PIN_1 % 8))) | (1 << (TX_2_PIN_2 % 8));
+
+    // Turn off TX_2_PIN_1 and turn on TX_2_PIN_2
+    TX_2_PORT = TX_2_PORT & (~TX_2_PIN_1_MASK) | TX_2_PIN_2_MASK;
     next += HALF_PERIOD;
     while ((time = micros() - beginning) < next)
       ;

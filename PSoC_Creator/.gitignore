@@ -1,0 +1,15 @@
+*_timing.html
+*.rpt
+*.svd
+*.cyfit
+*.cycdx
+*.cyprj.*
+*.cywrk.*
+*.uvopt
+*.uvproj
+*-000.cywrk
+ComponentUpdateLog.txt
+Generated_Source/
+DP8051/
+codegentemp/
+Backup/

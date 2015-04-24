@@ -3,12 +3,12 @@
 // attempt position calculations.
 
 enum {
-  RX_PIN = 11,
+  RX_PIN = 13,
   NUM_TRANSMITTERS = 4u,
   DURATION = 5000u,  // μs
 };
 
-unsigned const long SPACINGS[4] = {100000u, 100000u, 100000u, 700000u};
+unsigned const long SPACINGS[4] = {117766u, 95420u, 77814u, 709001u};
 
 void setup() {
   pinMode(RX_PIN, OUTPUT);

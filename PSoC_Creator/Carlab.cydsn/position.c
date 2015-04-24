@@ -5,7 +5,10 @@
  *
  * Provides positioning using time difference of arrival
  * multilateration with four transmitters arranged in a
- * rectangle.
+ * rectangle. Assumes the transmitters send out pings in turn
+ * with a certain amount of spacing time between when pings are
+ * sent, and that these pings are sent in a counterclockwise
+ * order.
  *
  * ===========================================================
  */
@@ -16,17 +19,65 @@
 #include "position.h"
 
 
-#define X 60.0  // ft
-#define Y 30.0  // ft
+/*
+ * CONSTANTS
+ */
+
+#define X 60.0  // distance between first and second transmitters in feet
+#define Y 30.0  // distance between second and third transmitters in feet
 #define CLOCK_FREQ 10000.0  // Hz
 #define WAVE_SPEED 1135.0  // ft/s
 #define TX_SPACING 1000  // clock cycles (tenths of milliseconds)
 #define EPSILON 0.1  // ft
 
 
-static float x = 0.0, y = 0.0;
+/*
+ * STATIC FUNCTION PROTOTYPES
+ */
 
-// Runs after each sequence of four pings. Calculates position.
+static CY_ISR_PROTO(positioningHandler) ;
+
+
+/*
+ * GLOBAL VARIABLES
+ */
+
+static float x = 0.0, y = 0.0;  // the current position
+
+
+/*
+ * FUNCTIONS
+ */
+
+/*
+ * position_init:
+ * Start positioning.
+ */
+void position_init(void) {
+    UltraCounter_Start();
+    UltraTimer_Start();
+    UltraComp_Start();
+    UltraDAC_Start();
+    UltraIRQ_Start();
+    UltraIRQ_SetVector(positioningHandler);
+}
+
+/*
+ * position_?:
+ * Getter functions for position in units of feet, with the origin at the
+ * center of the rectangle formed by the transmitters.
+ */
+float position_x(void) {
+    return x;
+}
+float position_y(void) {
+    return y;
+}
+
+/*
+ * positioningHandler:
+ * Interrupt handler run after sequence of four pings, calculating position.
+ */
 static CY_ISR(positioningHandler) {
     uint16 time[4];
     float diff[4];
@@ -57,26 +108,9 @@ static CY_ISR(positioningHandler) {
             / (2.0 * Y * (diff[1]+diff[3]-diff[2]));
     }
 
-    // Clear interrupt request
+    // Clear interrupt
     UltraTimer_ReadStatusRegister();
 }
 
-// Begin positioning
-void position_init(void) {
-    UltraCounter_Start();
-    UltraTimer_Start();
-    UltraComp_Start();
-    UltraDAC_Start();
-    UltraIRQ_Start();
-    UltraIRQ_SetVector(positioningHandler);
-}
-
-// Getter functions for position in units of feet
-float position_x(void) {
-    return x;
-}
-float position_y(void) {
-    return y;
-}
 
 /* [] END OF FILE */

@@ -13,10 +13,17 @@
 #ifndef POSITION_H
 #define POSITION_H
 
-// Begin positioning
+/*
+ * position_init:
+ * Start positioning.
+ */
 void position_init(void) ;
 
-// Getter functions for position in units of feet
+/*
+ * position_?:
+ * Getter functions for position in units of feet, with the origin at the
+ * center of the rectangle formed by the transmitters.
+ */
 float position_x(void) ;
 float position_y(void) ;
 

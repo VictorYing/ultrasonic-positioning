@@ -13,8 +13,9 @@
  * ===========================================================
  */
 
-#include<project.h>
-#include<math.h>
+#include <project.h>
+#include <math.h>
+#include <limits.h>
 
 #include "position.h"
 
@@ -25,7 +26,7 @@
 
 #define X 60.0  // distance between first and second transmitters in feet
 #define Y 30.0  // distance between second and third transmitters in feet
-#define CLOCK_FREQ 10000.0  // Hz
+#define CLOCK_FREQ 10000  // Hz
 #define WAVE_SPEED 1135.0  // ft/s
 #define TX_SPACING 1000  // clock cycles (tenths of milliseconds)
 #define EPSILON 0.1  // ft
@@ -84,13 +85,25 @@ static CY_ISR(positioningHandler) {
     int i;
 
     // Get the times of arrival
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < 4; i++) {
         time[i] = UltraTimer_ReadCapture();
 
+        // If more than a second since the last reset, then throw away this
+        // set of measurements
+        if (time[i] < USHRT_MAX - CLOCK_FREQ)
+            return;
+    }
+
     // Calculate differences in distances in feet
-    for (i = 1; i < 4; i++)
+    for (i = 1; i < 4; i++) {
         diff[i] = (float)((int16)(time[0] - time[i]) - i*TX_SPACING)
                   * (WAVE_SPEED/CLOCK_FREQ);
+
+        // If difference is much larger than the size of the rectangle of
+        // transmitter stations, the data is probably bad, so throw it away
+        if (diff[i] > X + Y)
+            return;
+    }
 
     // Calculate position
     if (fabs(diff[1]) < EPSILON) {

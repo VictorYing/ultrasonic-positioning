@@ -30,7 +30,7 @@ int main(void) {
         char buf[16];
 
         // Display position to LCD
-        sprintf(buf, "X:%2.2f  Y:%2.2f  ", position_x(), position_y());
+        sprintf(buf, "X:%.1f Y:%.1f    ", position_x(), position_y());
         LCD_Position(1,0);
         LCD_PrintString(buf);
         CyDelay(50u);

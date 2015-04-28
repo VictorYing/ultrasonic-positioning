@@ -13,11 +13,19 @@
 #ifndef POSITION_H
 #define POSITION_H
 
+#include <project.h>
+
 /*
  * position_init:
  * Start positioning.
  */
 void position_init(void) ;
+
+/*
+ * position_data_available:
+ * returns nonzero if new data since the last time this function was called.
+ */
+uint8 position_data_available(void) ;
 
 /*
  * position_?:

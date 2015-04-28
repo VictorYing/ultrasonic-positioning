@@ -26,10 +26,12 @@
 
 #define X 60.0  // distance between first and second transmitters in feet
 #define Y 30.0  // distance between second and third transmitters in feet
-#define CLOCK_FREQ 10000  // Hz
+#define CLOCK_FREQ 20000  // Hz
 #define WAVE_SPEED 1135.0  // ft/s
-#define TX_SPACING 1000  // clock cycles (tenths of milliseconds)
-#define EPSILON 0.1  // ft
+#define TX_SPACING 100  // ms
+#define EPSILON 0.5  // ft
+
+//#define DEBUG  // Uncomment this define to check if sanity checks are failing
 
 
 /*
@@ -44,6 +46,7 @@ static CY_ISR_PROTO(positioningHandler) ;
  */
 
 static float x = 0.0, y = 0.0;  // the current position
+static uint8 new_data = 0u;  // Boolean indicating whether new data available
 
 
 /*
@@ -61,6 +64,16 @@ void position_init(void) {
     UltraDAC_Start();
     UltraIRQ_Start();
     UltraIRQ_SetVector(positioningHandler);
+}
+
+/*
+ * position_data_available:
+ * returns nonzero if new data since the last time this function was called.
+ */
+uint8 position_data_available(void) {
+    uint8 ret = new_data;
+    new_data = 0u;
+    return ret;
 }
 
 /*
@@ -83,6 +96,10 @@ static CY_ISR(positioningHandler) {
     uint16 time[4];
     float diff[4];
     int i;
+    
+    // Clear interrupts
+    UltraTimer_ReadStatusRegister();
+
 
     // Get the times of arrival
     for (i = 0; i < 4; i++) {
@@ -90,19 +107,32 @@ static CY_ISR(positioningHandler) {
 
         // If more than a second since the last reset, then throw away this
         // set of measurements
-        if (time[i] < USHRT_MAX - CLOCK_FREQ)
+        if (time[i] == 0u || time[i] < USHRT_MAX - CLOCK_FREQ) {
+#ifdef DEBUG
+            x = (float)i;
+            y = (float)time[i];
+            new_data = 1u;
+#endif
             return;
+        }
     }
 
     // Calculate differences in distances in feet
     for (i = 1; i < 4; i++) {
-        diff[i] = (float)((int16)(time[0] - time[i]) - i*TX_SPACING)
+        diff[i] = (float)((int16)(time[0] - time[i])
+                          - i*(CLOCK_FREQ/1000*TX_SPACING))
                   * (WAVE_SPEED/CLOCK_FREQ);
 
         // If difference is much larger than the size of the rectangle of
         // transmitter stations, the data is probably bad, so throw it away
-        if (diff[i] > X + Y)
+        if (diff[i] > X + Y) {
+#ifdef DEBUG
+            x = (float)i;
+            y = diff[i];
+            new_data = 1u;
+#endif
             return;
+        }
     }
 
     // Calculate position
@@ -120,9 +150,8 @@ static CY_ISR(positioningHandler) {
         y = diff[3] * (diff[3]-diff[1]-diff[2]) * (diff[2]-diff[1])
             / (2.0 * Y * (diff[1]+diff[3]-diff[2]));
     }
+    new_data = 1u;
 
-    // Clear interrupt
-    UltraTimer_ReadStatusRegister();
 }
 
 

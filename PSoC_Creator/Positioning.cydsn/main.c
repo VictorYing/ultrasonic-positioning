@@ -30,10 +30,14 @@ int main(void) {
         char buf[16];
 
         // Display position to LCD
-        sprintf(buf, "X:%.1f Y:%.1f    ", position_x(), position_y());
-        LCD_Position(1,0);
-        LCD_PrintString(buf);
-        CyDelay(50u);
+        if (position_data_available()) {
+            static uint16 counter = 0u;
+            LCD_Position(0,0);
+            LCD_PrintNumber(counter++);
+            sprintf(buf, "X:%.1f Y:%.1f    ", position_x(), position_y());
+            LCD_Position(1,0);
+            LCD_PrintString(buf);
+        }
     }
 }
 

@@ -8,7 +8,8 @@ enum {
   DURATION = 5000u,  // μs
 };
 
-unsigned const long SPACINGS[4] = {117766u, 95420u, 77814u, 709001u};
+unsigned const long SPACINGS[NUM_TRANSMITTERS] =
+    {117766u, 95420u, 77814u, 709001u};
 
 void setup() {
   pinMode(RX_PIN, OUTPUT);

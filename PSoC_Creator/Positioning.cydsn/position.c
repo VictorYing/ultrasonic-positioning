@@ -71,8 +71,10 @@ void position_init(void) {
  * returns nonzero if new data since the last time this function was called.
  */
 uint8 position_data_available(void) {
+    uint8 status = CyEnterCriticalSection();
     uint8 ret = new_data;
     new_data = 0u;
+    CyExitCriticalSection(status);
     return ret;
 }
 
@@ -97,10 +99,6 @@ static CY_ISR(positioningHandler) {
     float diff[4];
     int i;
     
-    // Clear interrupts
-    UltraTimer_ReadStatusRegister();
-
-
     // Get the times of arrival
     for (i = 0; i < 4; i++) {
         time[i] = UltraTimer_ReadCapture();
@@ -152,6 +150,8 @@ static CY_ISR(positioningHandler) {
     }
     new_data = 1u;
 
+    // Clear interrupt
+    UltraTimer_ReadStatusRegister();
 }
 
 

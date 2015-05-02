@@ -54,42 +54,20 @@ void loop()
   { // If data comes in from XBee, send it out to serial monitor
     c = XBee.read();
     if (c == (char)('a' + TRANSMITTER_NUMBER - 1)) {
-      XBee.write((char)('a' + TRANSMITTER_NUMBER - 1));
+      XBee.write(c);
     }
     else if (c == (char)('A' + TRANSMITTER_NUMBER - 1)) {
       for (i = 0; i < 4; i++) {
         while (!XBee.available());
         b[i] = XBee.read();
       }
-      XBee.write('a');
       latTime = BytesToLong(b);
       Serial.println();
       Serial.println(latTime);
+      XBee.write(c);
     }
     else if (c == 'p') {
-      delayMicroseconds((100000u*TRANSMITTER_NUMBER)-latTime);
-      
-      // Send out ping from transmitter
-      unsigned long beginning = micros();
-      unsigned long time = micros() - beginning;
-      unsigned long next = time;
-      while (time < DURATION) {
-        // Turn off TX_PIN_2 and turn on TX_PIN_1
-        TX_PORT = TX_PORT & (~TX_PIN_2_MASK) | TX_PIN_1_MASK;
-        next += HALF_PERIOD;
-        while (micros() - beginning < next)
-          ;
-
-        // Turn off TX_PIN_1 and turn on TX_PIN_2
-        TX_PORT = TX_PORT & (~TX_PIN_1_MASK) | TX_PIN_2_MASK;
-        next += HALF_PERIOD;
-        while ((time = micros() - beginning) < next)
-          ;
-      }
-    }
-    else {
-      Serial.write(c);
-      Serial.println("issues");
+      sendPing();
     }
   }
 }
@@ -100,6 +78,33 @@ unsigned long BytesToLong(byte b[4]) {
     ret += (unsigned long)(b[i] & 0xFF) << 8*(3-i);
   }
   return ret;
+}
+
+void sendPing() {
+  unsigned long beginning = micros();
+  Serial.println("Sending ping");
+  while(micros() - beginning < (100000u*TRANSMITTER_NUMBER)-latTime)
+    ;
+  
+  // Send out ping from transmitter
+  beginning = micros();
+  unsigned long time = micros() - beginning;
+  unsigned long next = time;
+  while (time < DURATION) {
+    // Turn off TX_PIN_2 and turn on TX_PIN_1
+    TX_PORT = TX_PORT & (~TX_PIN_2_MASK) | TX_PIN_1_MASK;
+    next += HALF_PERIOD;
+    while (micros() - beginning < next)
+      ;
+
+    // Turn off TX_PIN_1 and turn on TX_PIN_2
+    TX_PORT = TX_PORT & (~TX_PIN_1_MASK) | TX_PIN_2_MASK;
+    next += HALF_PERIOD;
+    while ((time = micros() - beginning) < next)
+      ;
+  }
+  
+  Serial.println("Ping sent");
 }
 
 

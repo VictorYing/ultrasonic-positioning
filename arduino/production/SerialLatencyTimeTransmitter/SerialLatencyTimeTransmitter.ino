@@ -13,8 +13,24 @@ Hardware Hookup:
 // We'll use SoftwareSerial to communicate with the XBee:
 #include <SoftwareSerial.h>
 
-#define NUM_TRANSMITTERS 2
+#define NUM_TRANSMITTERS 3
 #define NUM_TESTS 5
+#define TIMEOUT 50000 // µs
+#define TX_PORT PORTB
+
+enum {
+  TX_PIN_1 = 12,
+  TX_PIN_2 = 13,
+  TX_PIN_1_MASK = 1u << (TX_PIN_1 % 8u),
+  TX_PIN_2_MASK = 1u << (TX_PIN_2 % 8u),
+  FREQ = 25000u,  // Hz
+  PERIOD = 1000000u / FREQ,  // μs
+  HALF_PERIOD = PERIOD / 2u,  // μs
+  DURATION = 5000u,  // μs
+  BAUD_RATE = 9600u, // bps
+};
+
+
 // XBee's DOUT (TX) is connected to pin 2 (Arduino's Software RX)
 // XBee's DIN (RX) is connected to pin 3 (Arduino's Software TX)
 SoftwareSerial XBee(2, 3); // RX, TX
@@ -24,14 +40,14 @@ void setup()
   // Set up both ports at 9600 baud. This value is most important
   // for the XBee. Make sure the baud rate matches the config
   // setting of your XBee.
-  XBee.begin(9600);
-  Serial.begin(9600);
+  XBee.begin(BAUD_RATE);
+  Serial.begin(BAUD_RATE);
 }
 
 void loop()
 {
   int i, j;
-  unsigned long startTime, totalLatTime, averageLatTime;
+  unsigned long startTime, totalLatTime, averageLatTime, beginning;
   byte b[4];
   unsigned long startTotTime = micros();
     
@@ -40,9 +56,14 @@ void loop()
     for (j = 0; j < NUM_TESTS; j++) {
       startTime = micros();
       XBee.write((char)('a' + i));
-      while (!XBee.available());
-      XBee.read();
-      totalLatTime += (micros()-startTime);
+      while (!XBee.available() && (micros() - startTime < TIMEOUT));
+      if (XBee.available()) {
+        XBee.read();
+        totalLatTime += (micros()-startTime);
+      }
+      else {
+        j -= 1;
+      }
       //Serial.println(totalLatTime);
     }
     averageLatTime = totalLatTime/(2*NUM_TESTS);
@@ -53,10 +74,15 @@ void loop()
     for (j = 0; j < 4; j++) {
       XBee.write(b[j]); 
     } 
-    while (!XBee.available());
-    XBee.read();
+    beginning = micros();
+    while (!XBee.available() && (micros()-beginning < TIMEOUT));
+    Serial.print("Acknowledgement: ");
+    Serial.write(XBee.read());
+    Serial.println();
   }
+  delay(25);
   XBee.write('p');
+  sendPing();
   Serial.print("Total Time: ");
   Serial.println(micros()-startTotTime);
   delay(1000);
@@ -69,11 +95,36 @@ void LongToBytes(unsigned long val, byte b[4]) {
   b[3] = (byte )(val & 0xff);
 }
 
+/*
 unsigned long BytesToLong(byte b[4]) {
   return ((unsigned long)(b[0] & 0xFF) << 24) + ((unsigned long)(b[1] & 0xFF) << 16) 
           + ((unsigned long)(b[2] & 0xFF) << 8) + (unsigned long)(b[3] & 0xFF);
 }
+*/
 
+void sendPing() {
+  
+  Serial.println("Sending ping");
+  
+  // Send out ping from transmitter
+  unsigned long beginning = micros();
+  unsigned long time = micros() - beginning;
+  unsigned long next = time;
+  while (time < DURATION) {
+    // Turn off TX_PIN_2 and turn on TX_PIN_1
+    TX_PORT = TX_PORT & (~TX_PIN_2_MASK) | TX_PIN_1_MASK;
+    next += HALF_PERIOD;
+    while (micros() - beginning < next)
+      ;
+
+    // Turn off TX_PIN_1 and turn on TX_PIN_2
+    TX_PORT = TX_PORT & (~TX_PIN_1_MASK) | TX_PIN_2_MASK;
+    next += HALF_PERIOD;
+    while ((time = micros() - beginning) < next)
+      ;
+  }
+  Serial.println("Ping sent");
+}
 /*
 // ASCIItoInt
 // Helper function to turn an ASCII hex value into a 0-15 byte val

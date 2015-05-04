@@ -24,8 +24,8 @@
  * CONSTANTS
  */
 
-#define X 60.0  // distance between first and second transmitters in feet
-#define Y 30.0  // distance between second and third transmitters in feet
+#define X 24.0  // distance between first and second transmitters in feet
+#define Y 34.0  // distance between second and third transmitters in feet
 #define CLOCK_FREQ 20000  // Hz
 #define WAVE_SPEED 1135.0  // ft/s
 #define TX_SPACING 100  // ms

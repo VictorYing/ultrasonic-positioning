@@ -15,7 +15,6 @@ Hardware Hookup:
 
 #define NUM_TRANSMITTERS 3
 #define NUM_TESTS 5
-#define TIMEOUT 50000 // µs
 #define TX_PORT PORTB
 
 enum {
@@ -26,6 +25,7 @@ enum {
   FREQ = 25000u,  // Hz
   PERIOD = 1000000u / FREQ,  // μs
   HALF_PERIOD = PERIOD / 2u,  // μs
+  TIMEOUT = 50000u, // µs
   DURATION = 5000u,  // μs
   BAUD_RATE = 9600u, // bps
 };
@@ -88,7 +88,7 @@ void loop()
   sendPing();
   Serial.print("Total Time: ");
   Serial.println(micros()-startTotTime);
-  delay(1000);
+  delay(300);
 }
 
 void LongToBytes(unsigned long val, byte b[4]) {

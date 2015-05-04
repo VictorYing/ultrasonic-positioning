@@ -13,6 +13,7 @@ Hardware Hookup:
 // We'll use SoftwareSerial to communicate with the XBee:
 #include <SoftwareSerial.h>
 #define TX_PORT PORTB
+#define TRANSMITTER_NUMBER 3u
 
 enum {
   TX_PIN_1 = 12,
@@ -25,7 +26,7 @@ enum {
   DURATION = 5000u,  // μs
   TIMEOUT = 50000u, // μs
   BAUD_RATE = 9600u, // bps
-  TRANSMITTER_NUMBER = 2u,
+  MAX_LAT_TIME = 20000u, // μs
 };
 
 // XBee's DOUT (TX) is connected to pin 2 (Arduino's Software RX)
@@ -69,8 +70,11 @@ void loop()
         }
       }
       if (i == 4) {
-       Serial.println("YAY"); 
-       latTime = BytesToLong(b);
+       unsigned long temp = BytesToLong(b);
+       if (temp < MAX_LAT_TIME) {
+         Serial.println("YAY"); 
+         latTime = temp;
+       }
       }
       Serial.println();
       Serial.println(latTime);

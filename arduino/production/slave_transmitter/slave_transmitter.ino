@@ -23,8 +23,9 @@ enum {
   PERIOD = 1000000u / FREQ,  // μs
   HALF_PERIOD = PERIOD / 2u,  // μs
   DURATION = 5000u,  // μs
+  TIMEOUT = 50000u, // μs
   BAUD_RATE = 9600u, // bps
-  TRANSMITTER_NUMBER = 3u,
+  TRANSMITTER_NUMBER = 2u,
 };
 
 // XBee's DOUT (TX) is connected to pin 2 (Arduino's Software RX)
@@ -58,10 +59,19 @@ void loop()
     }
     else if (c == (char)('A' + TRANSMITTER_NUMBER - 1)) {
       for (i = 0; i < 4; i++) {
-        while (!XBee.available());
-        b[i] = XBee.read();
+        unsigned long beginning = micros();
+        while (!XBee.available() && (micros()-beginning < TIMEOUT));
+        if (XBee.available()) {
+          b[i] = XBee.read();
+        }
+        else {
+          break;
+        }
       }
-      latTime = BytesToLong(b);
+      if (i == 4) {
+       Serial.println("YAY"); 
+       latTime = BytesToLong(b);
+      }
       Serial.println();
       Serial.println(latTime);
       XBee.write(c);

@@ -37,6 +37,9 @@ SoftwareSerial XBee(2, 3); // RX, TX
 
 void setup()
 {
+  pinMode(TX_PIN_1, OUTPUT);
+  pinMode(TX_PIN_2, OUTPUT);
+  
   // Set up both ports at 9600 baud. This value is most important
   // for the XBee. Make sure the baud rate matches the config
   // setting of your XBee.

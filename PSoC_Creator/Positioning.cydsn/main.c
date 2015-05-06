@@ -10,12 +10,13 @@
 
 #include <project.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "position.h"
 
 
 int main(void) {
-
+    
     // Enable interrupts
     CyGlobalIntEnable;
 
@@ -37,8 +38,8 @@ int main(void) {
             sprintf(buf, "X:%.1f Y:%.1f    ", position_x(), position_y());
             LCD_Position(1,0);
             LCD_PrintString(buf);
-        }
-    }
+        }       
+    }   
 }
 
 /* [] END OF FILE */

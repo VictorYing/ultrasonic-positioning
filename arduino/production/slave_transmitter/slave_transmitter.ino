@@ -13,7 +13,7 @@ Hardware Hookup:
 // We'll use SoftwareSerial to communicate with the XBee:
 #include <SoftwareSerial.h>
 #define TX_PORT PORTB
-#define TRANSMITTER_NUMBER 3u
+#define TRANSMITTER_NUMBER 1
 
 enum {
   TX_PIN_1 = 12,
@@ -27,6 +27,7 @@ enum {
   TIMEOUT = 50000u, // μs
   BAUD_RATE = 9600u, // bps
   MAX_LAT_TIME = 20000u, // μs
+  SOFTWARE_SERIAL_DELAY = 2000u, // μs
 };
 
 // XBee's DOUT (TX) is connected to pin 2 (Arduino's Software RX)
@@ -40,7 +41,7 @@ void setup()
   // for the XBee. Make sure the baud rate matches the config
   // setting of your XBee.
   XBee.begin(BAUD_RATE);
-  Serial.begin(BAUD_RATE);
+  //Serial.begin(BAUD_RATE); // Serial for debugging
   
   pinMode(TX_PIN_1, OUTPUT);
   pinMode(TX_PIN_2, OUTPUT);
@@ -72,15 +73,13 @@ void loop()
       if (i == 4) {
        unsigned long temp = BytesToLong(b);
        if (temp < MAX_LAT_TIME) {
-         Serial.println("YAY"); 
          latTime = temp;
        }
       }
-      Serial.println();
-      Serial.println(latTime);
       XBee.write(c);
     }
     else if (c == 'p') {
+      delayMicroseconds(SOFTWARE_SERIAL_DELAY);
       sendPing();
     }
   }
@@ -96,7 +95,7 @@ unsigned long BytesToLong(byte b[4]) {
 
 void sendPing() {
   unsigned long beginning = micros();
-  Serial.println("Sending ping");
+  //Serial.println("Sending ping");
   while(micros() - beginning < (100000u*TRANSMITTER_NUMBER)-latTime)
     ;
   
@@ -118,7 +117,7 @@ void sendPing() {
       ;
   }
   
-  Serial.println("Ping sent");
+  //Serial.println("Ping sent");
 }
 
 

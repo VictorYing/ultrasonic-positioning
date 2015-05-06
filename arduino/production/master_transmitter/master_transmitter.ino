@@ -56,6 +56,7 @@ void loop()
     
   for (i = 0; i < NUM_TRANSMITTERS; i++) {
     totalLatTime = 0u;
+    int successCount = 0;
     for (j = 0; j < NUM_TESTS; j++) {
       startTime = micros();
       XBee.write((char)('a' + i));
@@ -63,27 +64,26 @@ void loop()
       if (XBee.available()) {
         XBee.read();
         totalLatTime += (micros()-startTime);
-      }
-      else {
-        j -= 1;
+        successCount++;
       }
       //Serial.println(totalLatTime);
     }
-    averageLatTime = totalLatTime/(2*NUM_TESTS);
-    Serial.print("Average Time: ");
-    Serial.println(averageLatTime);
-    XBee.write((char)('A' + i));
-    LongToBytes(averageLatTime, b);
-    for (j = 0; j < 4; j++) {
-      XBee.write(b[j]); 
-    } 
-    beginning = micros();
-    while (!XBee.available() && (micros()-beginning < TIMEOUT));
-    Serial.print("Acknowledgement: ");
-    Serial.write(XBee.read());
-    Serial.println();
+    if (successCount > 0) {
+      averageLatTime = totalLatTime/(2*successCount);
+      Serial.print("Average Time: ");
+      Serial.println(averageLatTime);
+      XBee.write((char)('A' + i));
+      LongToBytes(averageLatTime, b);
+      for (j = 0; j < 4; j++) {
+        XBee.write(b[j]); 
+      } 
+      beginning = micros();
+      while (!XBee.available() && (micros()-beginning < TIMEOUT));
+      Serial.print("Acknowledgement: ");
+      Serial.write(XBee.read());
+      Serial.println();
+    }
   }
-  delay(25);
   XBee.write('p');
   sendPing();
   Serial.print("Total Time: ");
@@ -107,7 +107,7 @@ unsigned long BytesToLong(byte b[4]) {
 
 void sendPing() {
   
-  Serial.println("Sending ping");
+  //Serial.println("Sending ping");
   
   // Send out ping from transmitter
   unsigned long beginning = micros();

@@ -16,6 +16,7 @@
 #include <project.h>
 #include <math.h>
 #include <limits.h>
+#include <stdio.h>
 
 #include "position.h"
 
@@ -24,12 +25,16 @@
  * CONSTANTS
  */
 
-#define X 24.0  // distance between first and second transmitters in feet
-#define Y 34.0  // distance between second and third transmitters in feet
-#define CLOCK_FREQ 20000  // Hz
+#define X 23.5  // distance between first and second transmitters in feet
+#define Y 33.75  // distance between second and third transmitters in feet
+#define Z 7.583
+#define CLOCK_FREQ 1000000  // Hz
 #define WAVE_SPEED 1135.0  // ft/s
 #define TX_SPACING 100  // ms
 #define EPSILON 0.5  // ft
+#define DEL_FACTOR 0.1 // ft
+#define MAX_ERROR 0.01 // ft
+#define MAX_ITERATIONS 50
 
 //#define DEBUG  // Uncomment this define to check if sanity checks are failing
 
@@ -59,6 +64,7 @@ static uint8 new_data = 0u;  // Boolean indicating whether new data available
  */
 void position_init(void) {
     UltraCounter_Start();
+    GlitchCounter_Start();
     UltraTimer_Start();
     UltraComp_Start();
     UltraDAC_Start();
@@ -90,14 +96,27 @@ float position_y(void) {
     return y;
 }
 
+float fabsf(float num) {
+    if (num > 0.0)
+        return num;
+    else
+        return (-1)*num;
+}
+
 /*
  * positioningHandler:
  * Interrupt handler run after sequence of four pings, calculating position.
  */
 static CY_ISR(positioningHandler) {
-    uint16 time[4];
-    float diff[4];
-    int i;
+    uint32 time[4];
+    uint8 xFlag, yFlag;
+    float diff[4], dist[4];
+    int i, iters = 0;
+    char buf[16];
+    float dfx, dfy, dfxAbs, dfyAbs, fxy;
+    float delta;
+
+    //LCD_Start();
     
     // Get the times of arrival
     for (i = 0; i < 4; i++) {
@@ -105,7 +124,7 @@ static CY_ISR(positioningHandler) {
 
         // If more than a second since the last reset, then throw away this
         // set of measurements
-        if (time[i] == 0u || time[i] < USHRT_MAX - CLOCK_FREQ) {
+        if (time[i] == 0u || time[i] < ULONG_MAX - CLOCK_FREQ) {
 #ifdef DEBUG
             x = (float)i;
             y = (float)time[i];
@@ -117,13 +136,19 @@ static CY_ISR(positioningHandler) {
 
     // Calculate differences in distances in feet
     for (i = 1; i < 4; i++) {
-        diff[i] = (float)((int16)(time[0] - time[i])
+        char buf[8];
+        diff[i] = (float)((int32)(time[0] - time[i])
                           - i*(CLOCK_FREQ/1000*TX_SPACING))
                   * (WAVE_SPEED/CLOCK_FREQ);
-
+        /*LCD_Position(0, 5*(i-1));
+        LCD_PrintString("  ");
+        LCD_Position(0, 6*(i-1));
+        sprintf(buf, "%.1f  ", diff[i]);
+        LCD_PrintString(buf);*/
+        
         // If difference is much larger than the size of the rectangle of
         // transmitter stations, the data is probably bad, so throw it away
-        if (diff[i] > X + Y) {
+        if (fabsf(diff[i]) > X + Y) {
 #ifdef DEBUG
             x = (float)i;
             y = diff[i];
@@ -134,11 +159,11 @@ static CY_ISR(positioningHandler) {
     }
 
     // Calculate position
-    if (fabs(diff[1]) < EPSILON) {
+    if (fabsf(diff[1]) < EPSILON) {
         x = 0.0;
         y = diff[3] * diff[2] / (2.0 * Y);
     }
-    else if (fabs(diff[3]) < EPSILON) {
+    else if (fabsf(diff[3]) < EPSILON) {
         x = diff[1] * diff[2] / (2.0 * X);
         y = 0.0;
     }
@@ -148,6 +173,69 @@ static CY_ISR(positioningHandler) {
         y = diff[3] * (diff[3]-diff[1]-diff[2]) * (diff[2]-diff[1])
             / (2.0 * Y * (diff[1]+diff[3]-diff[2]));
     }
+    
+    if (fabsf(x) > X/2.0)
+        x = 0.0;
+    if (fabsf(y) > Y/2.0)
+        y = 0.0;
+    
+    xFlag = 0u;
+    yFlag = 0u;
+    
+    do {
+        dist[0] = sqrt((x+X/2)*(x+X/2) + (y+Y/2)*(y+Y/2) + Z*Z);
+        dist[1] = sqrt((x-X/2)*(x-X/2) + (y+Y/2)*(y+Y/2) + Z*Z);
+        dist[2] = sqrt((x-X/2)*(x-X/2) + (y-Y/2)*(y-Y/2) + Z*Z);
+        dist[3] = sqrt((x+X/2)*(x+X/2) + (y-Y/2)*(y-Y/2) + Z*Z);
+       
+        fxy = ((dist[1]-dist[0])-diff[1])*((dist[1]-dist[0])-diff[1])
+                + ((dist[2]-dist[0])-diff[2])*((dist[2]-dist[0])-diff[2])
+                + ((dist[3]-dist[0])-diff[3])*((dist[3]-dist[0])-diff[3]);
+                
+        dfx = 2*(diff[2] + dist[0] - dist[2])*(-((x - X/2)/dist[2]) + (x + X/2)/dist[0]);
+        dfx += 2*(diff[3] + dist[0] - dist[3])*(-((x + X/2)/dist[3]) + (x + X/2)/dist[0]);
+        dfx += 2*(diff[1] + dist[0] - dist[1])*(-((x - X/2)/dist[1]) + (x + X/2)/dist[0]);
+       
+        dfy = 2*(diff[2] + dist[0] - dist[2])*(-((y - Y/2)/dist[2]) + (y + Y/2)/dist[0]);
+        dfy += 2*(diff[3] + dist[0] - dist[3])*(-((y - Y/2)/dist[3]) + (y + Y/2)/dist[0]);
+        dfy += 2*(diff[1] + dist[0] - dist[1])*(-((y + Y/2)/dist[1]) + (y + Y/2)/dist[0]);
+        
+        dfxAbs = fabsf(dfx);
+        dfyAbs = fabsf(dfy);
+        
+        if (dfxAbs > dfyAbs) {
+            if (dfxAbs > 0.0) {
+                delta = DEL_FACTOR*dfx;
+                x -= delta;
+            }
+            else {
+                x += DEL_FACTOR;
+            }
+        }
+        else {
+            if (dfyAbs > 0.0) {
+                delta = DEL_FACTOR*dfy;
+                y -= delta;
+            }
+            else {
+                y += DEL_FACTOR;
+            }
+        }
+       
+       
+        /*sprintf(buf, "dX:%.2f dY:%.2f   ", fabsf(dfx), fabsf(dfy));
+        LCD_Position(1,0);
+        LCD_PrintString(buf);
+        sprintf(buf, "X:%.1f Y:%.1f   ", x, y);
+        LCD_Position(0,0);
+        LCD_PrintString(buf);
+        sprintf(buf, "%.1f     ", fxy);
+        LCD_Position(0,13);
+        LCD_PrintString(buf);*/
+          
+        iters++;
+    } while ((fabsf(fxy) > MAX_ERROR) && (iters < MAX_ITERATIONS));  
+    
     new_data = 1u;
 
     // Clear interrupt

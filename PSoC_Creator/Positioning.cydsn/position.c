@@ -33,11 +33,12 @@
 #define TX_SPACING 100  // ms
 #define EPSILON 0.5  // ft
 #define DEL_FACTOR 0.1 // ft
-#define MAX_ERROR 0.01 // ft
+#define MAX_ERROR 0.5 // ft^2
+#define ERROR_THRESHOLD 0.01 // ft^2
 #define MAX_ITERATIONS 50
 
 //#define DEBUG  // Uncomment this define to check if sanity checks are failing
-
+//#define VERBOSE // Uncomment this define to see Newton method at work
 
 /*
  * STATIC FUNCTION PROTOTYPES
@@ -113,6 +114,8 @@ static CY_ISR(positioningHandler) {
     float diff[4], dist[4];
     int i, iters = 0;
     char buf[16];
+    float newX = x;
+    float newY = y;
     float dfx, dfy, dfxAbs, dfyAbs, fxy;
     float delta;
 
@@ -157,7 +160,7 @@ static CY_ISR(positioningHandler) {
             return;
         }
     }
-
+    /*
     // Calculate position
     if (fabsf(diff[1]) < EPSILON) {
         x = 0.0;
@@ -178,9 +181,8 @@ static CY_ISR(positioningHandler) {
         x = 0.0;
     if (fabsf(y) > Y/2.0)
         y = 0.0;
+    */
     
-    xFlag = 0u;
-    yFlag = 0u;
     
     do {
         dist[0] = sqrt((x+X/2)*(x+X/2) + (y+Y/2)*(y+Y/2) + Z*Z);
@@ -206,24 +208,24 @@ static CY_ISR(positioningHandler) {
         if (dfxAbs > dfyAbs) {
             if (dfxAbs > 0.0) {
                 delta = DEL_FACTOR*dfx;
-                x -= delta;
+                newX -= delta;
             }
             else {
-                x += DEL_FACTOR;
+                newX += DEL_FACTOR;
             }
         }
         else {
             if (dfyAbs > 0.0) {
                 delta = DEL_FACTOR*dfy;
-                y -= delta;
+                newY -= delta;
             }
             else {
-                y += DEL_FACTOR;
+                newY += DEL_FACTOR;
             }
         }
        
-       
-        /*sprintf(buf, "dX:%.2f dY:%.2f   ", fabsf(dfx), fabsf(dfy));
+#ifdef VERBOSE 
+        sprintf(buf, "dX:%.2f dY:%.2f   ", fabsf(dfx), fabsf(dfy));
         LCD_Position(1,0);
         LCD_PrintString(buf);
         sprintf(buf, "X:%.1f Y:%.1f   ", x, y);
@@ -231,12 +233,17 @@ static CY_ISR(positioningHandler) {
         LCD_PrintString(buf);
         sprintf(buf, "%.1f     ", fxy);
         LCD_Position(0,13);
-        LCD_PrintString(buf);*/
-          
+        LCD_PrintString(buf);
+#endif
+
         iters++;
-    } while ((fabsf(fxy) > MAX_ERROR) && (iters < MAX_ITERATIONS));  
+    } while ((fabsf(fxy) > ERROR_THRESHOLD) && (iters < MAX_ITERATIONS));  
     
-    new_data = 1u;
+    if (fxy < MAX_ERROR) {
+        x = newX;
+        y = newY;
+        new_data = 1u;
+    }
 
     // Clear interrupt
     UltraTimer_ReadStatusRegister();

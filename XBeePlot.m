@@ -1,28 +1,46 @@
-s = serial('COM14');
-set(s,'BaudRate',9600);
-set(s,'Timeout',1000);
-set(s,'Terminator', 'CR/LF')
+if (~isempty(instrfind))
+    fclose(instrfind);
+    delete(instrfind);
+    clear s;
+end
+
+s = serial('COM11');
+s.BaudRate = 9600;
+s.Timeout = 10;
+s.Terminator = 'LF';
 fopen(s);
 
-while s.BytesAvailable < 16
-end
-A = fscanf(s,'X:%e Y:%e ');
-x(1) = A(1);
-y(1) = A(2);
+h = animatedline('Color','red','Marker','o');
 
-plot(x, y, '-o');
-linkdata on;
-
-for i=2:1000
-    if (s.BytesAvailable > 15)
-        A = fscanf(s,'\nX:%e Y:%e ');
-        x(i) = A(1);
-        y(i) = A(2);
+while 1
+    try
+        [str, count, msg] = fgetl(s);
+        if(~isempty(msg))
+            error(msg);
+        end
+    catch err
+        err
+        disp('A timeout occurred or the user quit the program!')
+        break;
+    end
+    
+    if str < 0
+        break;
+    end
+    
+    if str(1) == char(1)
+        str = str(2:end);
+    end
+    [c, num] = sscanf(str, '%c%f%c%f', 4);
+    if num > 0 && c(1) == 'X'
+         x = c(2);
+         y = c(4);
+         addpoints(h, x, y);
+         drawnow
     end
 end
-
-linkdata off
 
 fclose(s);
 delete(s)
 clear s
+clear h

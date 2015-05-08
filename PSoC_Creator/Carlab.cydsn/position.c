@@ -35,10 +35,10 @@
 #define DEL_FACTOR 0.1  // ft
 #define MAX_ERROR 0.5  // ft^2
 #define ERROR_THRESHOLD 0.01  // ft^2
-#define MAX_ITERATIONS 50
+#define MAX_ITERATIONS 100
 
 //#define SHOW_GARBAGE  // Uncomment this to check if sanity checks are failing
-//#define VERBOSE
+#define PRINT_CONVERGENCE  // Comment this out to make positioning silent
 
 /*
  * STATIC FUNCTION PROTOTYPES
@@ -116,9 +116,8 @@ float fabsf(float num) {
 static CY_ISR(positioningHandler) {
     uint32 time[4];
     float diff[4];
-    int i, iters = 0;
-    float new_x, new_y;
-    char buf[16];
+    int i, iters;
+    float new_x, new_y, new_fxy;
 
     // Get the times of arrival
     for (i = 0; i < 4; i++) {
@@ -158,10 +157,12 @@ static CY_ISR(positioningHandler) {
     // Positioning using Newton's method
     new_x = x;
     new_y = y;
-    
+    iters = 0;
     do {
-        float dfx, dfy, dfxAbs, dfyAbs;
+        float dfx, dfy, gradient_magnitude_squared;
         float dist[4], error[4];
+        char buf[32];
+        uint8 status;
         
         // Calculate what the distances should be based on our most recent (x,y)
         dist[0] = sqrt((new_x+X/2)*(new_x+X/2) + (new_y+Y/2)*(new_y+Y/2) + Z*Z);
@@ -174,9 +175,9 @@ static CY_ISR(positioningHandler) {
             error[i] = (dist[i]-dist[0]) - diff[i];
             
         // Calculate our metric as the sum of the squares of the errors
-        fxy = 0.0;
+        new_fxy = 0.0;
         for (i = 1; i < 4; i++)
-            fxy += error[i]*error[i];
+            new_fxy += error[i]*error[i];
         
         // Calculate the partial derivatives of the metric
         dfx = 2*error[2] * (((new_x - X/2)/dist[2]) - (new_x + X/2)/dist[0]);
@@ -187,44 +188,37 @@ static CY_ISR(positioningHandler) {
         dfy += 2*error[3] * (((new_y - Y/2)/dist[3]) - (new_y + Y/2)/dist[0]);
         dfy += 2*error[1] * (((new_y + Y/2)/dist[1]) - (new_y + Y/2)/dist[0]);
         
-        dfxAbs = fabsf(dfx);
-        dfyAbs = fabsf(dfy);
+        // Quit now if we're already at a stationary point
+        gradient_magnitude_squared = dfx*dfx + dfy*dfy;
+        if (gradient_magnitude_squared == 0.0)
+            break;
         
-        if (dfxAbs > dfyAbs) {
-            if (dfxAbs > 0.0) {
-                new_x -= DEL_FACTOR*dfx;
-            }
-            else {
-                new_x += DEL_FACTOR;
-            }
-        }
-        else {
-            if (dfyAbs > 0.0) {
-                new_y -= DEL_FACTOR*dfy;
-            }
-            else {
-                new_y += DEL_FACTOR;
-            }
-        }
-       
-#ifdef VERBOSE 
-        sprintf(buf, "dX:%.1f dY:%.1f %d  ", dfxAbs, dfyAbs, iters);
+        // Otherwise, update according to a version of Newton's method
+        new_x -= DEL_FACTOR * new_fxy * dfx / gradient_magnitude_squared;
+        new_y -= DEL_FACTOR * new_fxy * dfy / gradient_magnitude_squared;
+        
+#ifdef PRINT_CONVERGENCE
+        // Show convergence happening on the LCD
+        status = CyEnterCriticalSection();
+        sprintf(buf, "dX:%.1f dY:%.1f %d  ", dfx, dfy, iters);
         LCD_Position(1,0);
         LCD_PrintString(buf);
         sprintf(buf, "X:%.1f Y:%.1f   ", new_x, new_y);
         LCD_Position(0,0);
         LCD_PrintString(buf);
-        sprintf(buf, "%.1f     ", fxy);
+        sprintf(buf, " %.1f     ", new_fxy);
         LCD_Position(0,13);
         LCD_PrintString(buf);
+        CyExitCriticalSection(status);
 #endif
 
         iters++;
-    } while ((fabsf(fxy) > ERROR_THRESHOLD) && (iters < MAX_ITERATIONS));  
+    } while ((fabsf(new_fxy) > ERROR_THRESHOLD) && (iters < MAX_ITERATIONS));  
     
-    if (fabsf(fxy) < MAX_ERROR) {
+    if (fabsf(new_fxy) < MAX_ERROR) {
         x = new_x;
         y = new_y;
+        fxy = new_fxy;
         new_data = 1u;
     }
 

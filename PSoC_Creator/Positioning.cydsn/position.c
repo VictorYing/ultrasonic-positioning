@@ -32,13 +32,13 @@
 #define WAVE_SPEED 1135.0  // ft/s
 #define TX_SPACING 100  // ms
 #define EPSILON 0.5  // ft
-#define DEL_FACTOR 0.1 // ft
-#define MAX_ERROR 0.5 // ft^2
-#define ERROR_THRESHOLD 0.01 // ft^2
+#define DEL_FACTOR 0.1  // ft
+#define MAX_ERROR 0.5  // ft^2
+#define ERROR_THRESHOLD 0.01  // ft^2
 #define MAX_ITERATIONS 50
 
-//#define DEBUG  // Uncomment this define to check if sanity checks are failing
-//#define VERBOSE // Uncomment this define to see Newton method at work
+//#define SHOW_GARBAGE  // Uncomment this to check if sanity checks are failing
+
 
 /*
  * STATIC FUNCTION PROTOTYPES
@@ -98,10 +98,10 @@ float position_y(void) {
 }
 
 float fabsf(float num) {
-    if (num > 0.0)
+    if (num >= 0.0)
         return num;
     else
-        return (-1)*num;
+        return -num;
 }
 
 /*
@@ -110,16 +110,9 @@ float fabsf(float num) {
  */
 static CY_ISR(positioningHandler) {
     uint32 time[4];
-    uint8 xFlag, yFlag;
-    float diff[4], dist[4];
+    float diff[4];
     int i, iters = 0;
-    char buf[16];
-    float newX = x;
-    float newY = y;
-    float dfx, dfy, dfxAbs, dfyAbs, fxy;
-    float delta;
-
-    //LCD_Start();
+    float new_x, new_y, fxy;
     
     // Get the times of arrival
     for (i = 0; i < 4; i++) {
@@ -128,7 +121,7 @@ static CY_ISR(positioningHandler) {
         // If more than a second since the last reset, then throw away this
         // set of measurements
         if (time[i] == 0u || time[i] < ULONG_MAX - CLOCK_FREQ) {
-#ifdef DEBUG
+#ifdef SHOW_GARBAGE
             x = (float)i;
             y = (float)time[i];
             new_data = 1u;
@@ -139,20 +132,15 @@ static CY_ISR(positioningHandler) {
 
     // Calculate differences in distances in feet
     for (i = 1; i < 4; i++) {
-        char buf[8];
         diff[i] = (float)((int32)(time[0] - time[i])
                           - i*(CLOCK_FREQ/1000*TX_SPACING))
                   * (WAVE_SPEED/CLOCK_FREQ);
-        /*LCD_Position(0, 5*(i-1));
-        LCD_PrintString("  ");
-        LCD_Position(0, 6*(i-1));
-        sprintf(buf, "%.1f  ", diff[i]);
-        LCD_PrintString(buf);*/
         
         // If difference is much larger than the size of the rectangle of
         // transmitter stations, the data is probably bad, so throw it away
         if (fabsf(diff[i]) > X + Y) {
-#ifdef DEBUG
+        
+#ifdef SHOW_GARBAGE
             x = (float)i;
             y = diff[i];
             new_data = 1u;
@@ -160,67 +148,55 @@ static CY_ISR(positioningHandler) {
             return;
         }
     }
-    /*
-    // Calculate position
-    if (fabsf(diff[1]) < EPSILON) {
-        x = 0.0;
-        y = diff[3] * diff[2] / (2.0 * Y);
-    }
-    else if (fabsf(diff[3]) < EPSILON) {
-        x = diff[1] * diff[2] / (2.0 * X);
-        y = 0.0;
-    }
-    else {
-        x = diff[1] * (diff[1]-diff[3]-diff[2]) * (diff[2]-diff[3])
-            / (2.0 * X * (diff[1]+diff[3]-diff[2]));
-        y = diff[3] * (diff[3]-diff[1]-diff[2]) * (diff[2]-diff[1])
-            / (2.0 * Y * (diff[1]+diff[3]-diff[2]));
-    }
-    
-    if (fabsf(x) > X/2.0)
-        x = 0.0;
-    if (fabsf(y) > Y/2.0)
-        y = 0.0;
-    */
-    
-    
+
+    // Positioning using Newton's method
+    new_x = x;
+    new_y = y;
     do {
-        dist[0] = sqrt((x+X/2)*(x+X/2) + (y+Y/2)*(y+Y/2) + Z*Z);
-        dist[1] = sqrt((x-X/2)*(x-X/2) + (y+Y/2)*(y+Y/2) + Z*Z);
-        dist[2] = sqrt((x-X/2)*(x-X/2) + (y-Y/2)*(y-Y/2) + Z*Z);
-        dist[3] = sqrt((x+X/2)*(x+X/2) + (y-Y/2)*(y-Y/2) + Z*Z);
+        float dfx, dfy, dfxAbs, dfyAbs;
+        float dist[4], error[4];
+        
+        // Calculate what the distances should be based on our most recent (x,y)
+        dist[0] = sqrt((new_x+X/2)*(new_x+X/2) + (new_y+Y/2)*(new_y+Y/2) + Z*Z);
+        dist[1] = sqrt((new_x-X/2)*(new_x-X/2) + (new_y+Y/2)*(new_y+Y/2) + Z*Z);
+        dist[2] = sqrt((new_x-X/2)*(new_x-X/2) + (new_y-Y/2)*(new_y-Y/2) + Z*Z);
+        dist[3] = sqrt((new_x+X/2)*(new_x+X/2) + (new_y-Y/2)*(new_y-Y/2) + Z*Z);
        
-        fxy = ((dist[1]-dist[0])-diff[1])*((dist[1]-dist[0])-diff[1])
-                + ((dist[2]-dist[0])-diff[2])*((dist[2]-dist[0])-diff[2])
-                + ((dist[3]-dist[0])-diff[3])*((dist[3]-dist[0])-diff[3]);
-                
-        dfx = 2*(diff[2] + dist[0] - dist[2])*(-((x - X/2)/dist[2]) + (x + X/2)/dist[0]);
-        dfx += 2*(diff[3] + dist[0] - dist[3])*(-((x + X/2)/dist[3]) + (x + X/2)/dist[0]);
-        dfx += 2*(diff[1] + dist[0] - dist[1])*(-((x - X/2)/dist[1]) + (x + X/2)/dist[0]);
+        // Calculate disagreement between hypothetical distances and measurements
+        for (i = 1; i < 4; i++)
+            error[i] = (dist[i]-dist[0]) - diff[i];
+            
+        // Calculate our metric as the sum of the squares of the errors
+        fxy = 0.0;
+        for (i = 1; i < 4; i++)
+            fxy += error[i]*error[i];
+        
+        // Calculate the partial derivatives of the metric
+        dfx = 2*error[2] * (((new_x - X/2)/dist[2]) - (new_x + X/2)/dist[0]);
+        dfx += 2*error[3] * (((new_x + X/2)/dist[3]) - (new_x + X/2)/dist[0]);
+        dfx += 2*error[1] * (((new_x - X/2)/dist[1]) - (new_x + X/2)/dist[0]);
        
-        dfy = 2*(diff[2] + dist[0] - dist[2])*(-((y - Y/2)/dist[2]) + (y + Y/2)/dist[0]);
-        dfy += 2*(diff[3] + dist[0] - dist[3])*(-((y - Y/2)/dist[3]) + (y + Y/2)/dist[0]);
-        dfy += 2*(diff[1] + dist[0] - dist[1])*(-((y + Y/2)/dist[1]) + (y + Y/2)/dist[0]);
+        dfy = 2*error[2] * (((new_y - Y/2)/dist[2]) - (new_y + Y/2)/dist[0]);
+        dfy += 2*error[3] * (((new_y - Y/2)/dist[3]) - (new_y + Y/2)/dist[0]);
+        dfy += 2*error[1] * (((new_y + Y/2)/dist[1]) - (new_y + Y/2)/dist[0]);
         
         dfxAbs = fabsf(dfx);
         dfyAbs = fabsf(dfy);
         
         if (dfxAbs > dfyAbs) {
             if (dfxAbs > 0.0) {
-                delta = DEL_FACTOR*dfx;
-                newX -= delta;
+                new_x -= DEL_FACTOR*dfx;
             }
             else {
-                newX += DEL_FACTOR;
+                new_x += DEL_FACTOR;
             }
         }
         else {
             if (dfyAbs > 0.0) {
-                delta = DEL_FACTOR*dfy;
-                newY -= delta;
+                new_y -= DEL_FACTOR*dfy;
             }
             else {
-                newY += DEL_FACTOR;
+                new_y += DEL_FACTOR;
             }
         }
        
@@ -239,9 +215,9 @@ static CY_ISR(positioningHandler) {
         iters++;
     } while ((fabsf(fxy) > ERROR_THRESHOLD) && (iters < MAX_ITERATIONS));  
     
-    if (fxy < MAX_ERROR) {
-        x = newX;
-        y = newY;
+    if (fabsf(fxy) < MAX_ERROR) {
+        x = new_x;
+        y = new_y;
         new_data = 1u;
     }
 

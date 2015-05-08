@@ -6,10 +6,15 @@ end
 
 s = serial('COM14');
 s.BaudRate = 9600;
-s.Timeout = 10;
+s.Timeout = 20;
 s.Terminator = 'LF';
 fopen(s);
 
+figure(1);
+xlim([-12 12]);
+ylim([-17 17]);
+pbaspect([1 1 1]);
+clear h;
 h = animatedline('Color','red','Marker','o');
 
 while 1
@@ -28,19 +33,27 @@ while 1
         break;
     end
     
-    if str(1) == char(1)
-        str = str(2:end);
+    for i=1:size(str)
+        if str(i) ~= 'X'
+        else 
+            str = str(i:end);
+            break;
+        end
+    end
+    if strcmp(str, '')
+        continue;
     end
     [c, num] = sscanf(str, '%c%f%c%f', 4);
-    if num > 0 && c(1) == 'X'
+    if num == 4
          x = c(2);
          y = c(4);
-         addpoints(h, x, y);
-         drawnow
+         if (x ~= 0 || y ~= 0)
+            addpoints(h, x, y);
+            drawnow
+         end
     end
 end
 
 fclose(s);
 delete(s)
 clear s
-clear h

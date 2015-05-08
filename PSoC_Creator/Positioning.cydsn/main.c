@@ -16,24 +16,11 @@
 
 //#define VERBOSE // Uncomment this line to display Newton Method output
 
-static CY_ISR(rxHandler) {
-    char8 c;
-    
-    UART_ReadRxStatus();
-    c = UART_GetChar();
-    UART_PutChar(c);
-    LCD_Position(0,0);
-    LCD_PutChar(c);
-}
-
 int main(void) {
     
-    int i;
+
     // Enable interrupts
     CyGlobalIntEnable;
-    
-    RxIRQ_Start();
-    RxIRQ_SetVector(rxHandler);
 
     // Prepare for printing to the LCD
     LCD_Start();
@@ -43,27 +30,27 @@ int main(void) {
     position_init();
 
     // Do UI stuff in this loop
-    for(i = 0; i < 10; i++) {
-        char buf[16];
-        char8 c;
+    for(;;) {
+        char buf[80];
+        float x, y;
 
-#ifndef VERBOSE
         // Display position to LCD
         if (position_data_available()) {
-            
             static uint16 counter = 0u;
+            x = position_x();
+            y = position_y();
+            sprintf(buf, "X%.2fY%.2f\n", x, y);
+            UART_PutString(buf);    
+            
             LCD_Position(0,0);
             LCD_PrintNumber(counter++);
-            sprintf(buf, "X:%.2f Y:%.2f    ", position_x(), position_y());
+            sprintf(buf, "Error:%.2f   ", error());
+            LCD_Position(0,4);
+            LCD_PrintString(buf);
+            sprintf(buf, "X:%.2f Y:%.2f    ", x, y);
             LCD_Position(1,0);
             LCD_PrintString(buf);
-            sprintf(buf, "X:%.2f Y:%.2f \n\r", position_x(), position_y());
-            UART_PutString(buf);
-        }
-#endif
-        sprintf(buf, "X:%.2f Y:%.2f \n\r", position_x(), position_y());
-        UART_PutString(buf);    
-        
+        }        
     }
 }
 

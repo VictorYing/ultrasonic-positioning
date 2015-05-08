@@ -35,6 +35,12 @@ uint8 position_data_available(void) ;
 float position_x(void) ;
 float position_y(void) ;
 
+/*
+ * error:
+ * Getter function for error in units of feet squared.
+ */
+float error(void) ;
+
 #endif
 
 /* [] END OF FILE */

@@ -4,7 +4,7 @@ if (~isempty(instrfind))
     clear s;
 end
 
-s = serial('COM11');
+s = serial('COM14');
 s.BaudRate = 9600;
 s.Timeout = 10;
 s.Terminator = 'LF';

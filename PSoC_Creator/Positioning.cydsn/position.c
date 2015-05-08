@@ -38,7 +38,7 @@
 #define MAX_ITERATIONS 50
 
 //#define SHOW_GARBAGE  // Uncomment this to check if sanity checks are failing
-
+//#define VERBOSE
 
 /*
  * STATIC FUNCTION PROTOTYPES
@@ -52,6 +52,7 @@ static CY_ISR_PROTO(positioningHandler) ;
  */
 
 static float x = 0.0, y = 0.0;  // the current position
+static float fxy = 0.0; // the current error
 static uint8 new_data = 0u;  // Boolean indicating whether new data available
 
 
@@ -97,6 +98,10 @@ float position_y(void) {
     return y;
 }
 
+float error(void) {
+    return fxy;
+}
+
 float fabsf(float num) {
     if (num >= 0.0)
         return num;
@@ -112,8 +117,9 @@ static CY_ISR(positioningHandler) {
     uint32 time[4];
     float diff[4];
     int i, iters = 0;
-    float new_x, new_y, fxy;
-    
+    float new_x, new_y;
+    char buf[16];
+
     // Get the times of arrival
     for (i = 0; i < 4; i++) {
         time[i] = UltraTimer_ReadCapture();
@@ -148,10 +154,11 @@ static CY_ISR(positioningHandler) {
             return;
         }
     }
-
+    
     // Positioning using Newton's method
     new_x = x;
     new_y = y;
+    
     do {
         float dfx, dfy, dfxAbs, dfyAbs;
         float dist[4], error[4];
@@ -201,10 +208,10 @@ static CY_ISR(positioningHandler) {
         }
        
 #ifdef VERBOSE 
-        sprintf(buf, "dX:%.2f dY:%.2f   ", fabsf(dfx), fabsf(dfy));
+        sprintf(buf, "dX:%.1f dY:%.1f %d  ", dfxAbs, dfyAbs, iters);
         LCD_Position(1,0);
         LCD_PrintString(buf);
-        sprintf(buf, "X:%.1f Y:%.1f   ", x, y);
+        sprintf(buf, "X:%.1f Y:%.1f   ", new_x, new_y);
         LCD_Position(0,0);
         LCD_PrintString(buf);
         sprintf(buf, "%.1f     ", fxy);

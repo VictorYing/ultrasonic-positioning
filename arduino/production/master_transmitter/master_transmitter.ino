@@ -1,8 +1,8 @@
 /*****************************************************************
-XBee_Serial_Passthrough.ino
+master_transmitter.ino
 
-Set up a software serial port to pass data between an XBee Shield
-and the serial monitor.
+Communicate with slaves to establish radio communication latency,
+then start off the sequence of ultrasonic pings.
 
 Hardware Hookup:
   The XBee Shield makes all of the connections you'll need

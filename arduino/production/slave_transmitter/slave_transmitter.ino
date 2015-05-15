@@ -1,8 +1,8 @@
 /*****************************************************************
-XBee_Serial_Passthrough.ino
+slave_transmitter.ino
 
-Set up a software serial port to pass data between an XBee Shield
-and the serial monitor.
+Responds to messages from the master and sends out ultrasonic pings
+at the appropriate time.
 
 Hardware Hookup:
   The XBee Shield makes all of the connections you'll need
